@@ -1,6 +1,6 @@
 # Journal
 
-A descritive abou decisions make on this project.
+A descritive documentation about decisions make on this project.
 
 ## 2020-11-10 Morning decisions
 
@@ -14,3 +14,6 @@ That is why I will use a simple int32 on it. (I'm talking about 4294967295 queue
 
 It would be nice have some metrics about what is happening on the rotines pool, I will put a minimal to make this project run and later I will try to add some fancy metrics.
 
+## 2020-11-13 using golang standard layout
+
+Golang standart layout is not that great layout but it is still something.
