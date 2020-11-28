@@ -1,152 +1,128 @@
 package pool
 
 import (
-	"fmt"
 	"sync"
 	"time"
+
+	"github.com/rs/xid"
 )
 
-//Pool worker
-type Pool struct {
-
-	//Pool size
-	size int
-
-	//Running as server
-	server bool
-
-	//workers queued on this pool
-	workers map[int]workerInterface
-
-	//current workers running
-	running map[int]bool
-
-	//wait group for Run command
-	wg sync.WaitGroup
-
-	//Done channel called when an workerd finish
-	chDone chan int
-
-	//Shutdown channel called when want to shutdown this pool it will send a shutdown fignal for ,
-	chShutdown chan bool
-
-	//Quit is the last channel to be called, it will lead to end of running programimg.
-	chQuit chan bool
-
-	//The number of current tasks on pool
-	runningNumber int
-
-	//The number of queued tasks
-	workersNumber int
-
-	// Time of the run was called
-	startedAt time.Time
-
-	// started is true when the pool is already calling the workers ( Run() or Server() )
-	started bool
-
-	//shuttingDown is true when this pool is asked to shutdown
-	shuttingDown bool
+//New Pool Server
+func New(size int) Pool {
+	return &Impl{
+		size:       size,
+		chDone:     make(chan WorkerInfo),
+		chInfo:     make(chan WorkerInfo),
+		chQuit:     make(chan bool),
+		chShutdown: make(chan bool),
+		queue:      &queueImpl{},
+	}
 }
 
-//IPool to create a pool
-type IPool interface {
-
-	// Add worker to pool
-	Add(f func(chShutdown chan bool))
-
-	// Run tasks keept into pool until there is no more queued
-	Run()
+//Pool to create a pool
+type Pool interface {
 
 	// Server will be a pool server wich will wait until a shootdown as send
 	Server()
+
+	// Add worker to pool
+	Add(f func() error) (id string, err error)
 
 	// SetMaxPoolSize pool max size to a different number
 	SetMaxPoolSize(s int)
 
 	// Show status from pool
-	Status() string
+	// Status() string
 
-	// Shutdown()
-	Shutdown()
-
-	// done end a task on pool
-	done()
-
-	// start worker
-	startNextWorker()
+	// Shutdown start shutdown pool server
+	Shutdown() (killedTasksIds []string)
 }
 
-//New Pool
-func New(size int) IPool {
-	return &Pool{
-		size:    size,
-		workers: make(map[int]workerInterface),
-		running: make(map[int]bool),
-		chDone:  make(chan int),
-	}
+//Impl is the Pool interface implementation
+type Impl struct {
+
+	//Pool size
+	size int
+
+	// started is true when the pool is already calling the workers ( Run() or Server() )
+	started bool
+
+	// Time of the run was called
+	startedAt time.Time
+
+	//shuttingDown is true when this pool is asked to shutdown
+	shuttingDown bool
+
+	//Quit is the last channel to be called, it will lead to end of server.
+	chQuit chan bool
+
+	//Done channel called when an workerd finish
+	chDone chan WorkerInfo
+
+	//chInfo will send realtime info about what is happening
+	chInfo chan WorkerInfo
+
+	//Shutdown channel called when want to shutdown this pool it will send a shutdown fignal for ,
+	chShutdown chan bool
+
+	//muQueue is to add and remove thread safe from queued slice
+	muQueue sync.Mutex
+
+	//queued workers slice
+	queued []worker
+
+	//queue
+	queue queue
+
+	//number of worker running
+	runningWorkers int
 }
 
-//Server will pool wait for shutdown
-func (p *Pool) Server() {
-	p.server = true
-	p.Run()
-	<-p.chQuit
-}
+//Server start pool as service
+func (p *Impl) Server() {
 
-//Run Workers on Pool
-func (p *Pool) Run() {
-
-	p.startedAt = time.Now()
 	p.started = true
+	p.startedAt = time.Now()
 
 	go p.done()
 
-	ln := len(p.workers)
-
-	for workerID := 0; workerID < p.size && workerID < ln; workerID++ { // lock running go rotines
-		p.running[workerID] = true
+	for p.callNextWorker() {
+		// call until false
 	}
 
-	for workerID := 0; workerID < p.size && workerID < ln; workerID++ {
-		go p.workers[workerID].Run()
-	}
+	<-p.chQuit
 
-	// server will not wait for current pool finished
-	if !p.server {
-		p.wg.Wait()
-	}
+	close(p.chQuit)
+	close(p.chInfo)
+	close(p.chDone)
+	close(p.chShutdown)
 
 }
 
-//Add Function into Pool
-func (p *Pool) Add(f func(chShutdown chan bool)) {
+//Add new workers to pool
+func (p *Impl) Add(f func() error) (id string, err error) {
 
 	if p.shuttingDown {
-		return
+		return "", errAddONShuttingDown
 	}
 
-	p.workersNumber++
+	id = xid.New().String()
 
-	if !p.server {
-		p.wg.Add(1)
-	}
+	p.muQueue.Lock()
 
-	workerID := len(p.workers)
-
-	p.workers[workerID] = &worker{
-		init: func(w *worker) {
-			p.runningNumber++
-			p.workersNumber--
-			w.startedAt = time.Now()
-			f(p.chShutdown)
-			p.chDone <- workerID
-		},
+	p.queued = append(p.queued, &workerImpl{
+		id:       id,
 		queuedAt: time.Now(),
-	}
+		run: func() error {
+			return f()
+		},
+	})
 
-	p.startNextWorker()
+	p.muQueue.Unlock()
 
+	p.callNextWorker()
+
+	return id, nil
 }
 
 /*SetMaxPoolSize pool max size to a different number
@@ -157,62 +133,76 @@ func (p *Pool) Add(f func(chShutdown chan bool)) {
  * because when a current task finish it will check if
  * it should call a new worker or not.
  */
-func (p *Pool) SetMaxPoolSize(s int) {
+func (p *Impl) SetMaxPoolSize(size int) {
 
-	p.size = s
+	current := p.size
+	p.size = size
 
-	for p.runningNumber < p.size && p.workersNumber > 0 {
-		p.startNextWorker()
+	if current >= size {
+		return
+	}
+
+	for p.callNextWorker() {
+		// call until false
 	}
 
 }
 
-//Shutdown make the pool shutdown gracefully
-func (p *Pool) Shutdown() {
-	p.shuttingDown = true
+//Call Next Worker to be executed
+func (p *Impl) callNextWorker() bool {
+
+	if p.shuttingDown || p.size <= p.runningWorkers || p.queue.len() <= 0 {
+		return false
+	}
+
+	w := p.queue.get(&p.runningWorkers)
+
+	if w != nil {
+		go w.Start(p.chDone)
+	}
+
+	return len(p.queued) > 0
+
 }
 
-/* startNextWorker must start a new worker from queeue
+/*Shutdown force a shutdown on application, it will wait only for
+ *the running tasks finish, for a Graceful shutdown take a look into
+ *which will try to run all tasks on pool which are been queued ShutdownGraceful
  */
-func (p *Pool) startNextWorker() {
+func (p *Impl) Shutdown() (killedTasksIds []string) {
 
-	if p.started && !p.shuttingDown && p.runningNumber < p.size && p.workersNumber > 0 {
-		for next := range p.workers {
-			if _, running := p.running[next]; !running {
-				p.running[next] = true
-				go p.workers[next].Run()
-				break
-			}
-		}
+	p.shuttingDown = true
+	p.chShutdown <- true
+
+	p.muQueue.Lock()
+	defer p.muQueue.Unlock()
+
+	for _, w := range p.queued {
+		killedTasksIds = append(killedTasksIds, w.ID())
 	}
+
+	return killedTasksIds
 
 }
 
-func (p *Pool) done() {
+func (p *Impl) ShutdownGraceful() {
 
-	for workerID := range p.chDone {
+}
 
-		delete(p.workers, workerID)
-		delete(p.running, workerID)
+func (p *Impl) done() {
 
-		p.runningNumber--
+	for wInfo := range p.chDone {
 
-		if !p.server {
-			p.wg.Done()
-		}
+		p.runningWorkers--
 
-		if p.shuttingDown && p.runningNumber == 0 {
+		p.chInfo <- wInfo
+
+		if p.shuttingDown && p.runningWorkers == 0 {
 			p.chQuit <- true
+			break
 		}
 
-		p.startNextWorker()
+		p.callNextWorker()
 
 	}
-}
-
-//Status of pool
-func (p *Pool) Status() string {
-	return fmt.Sprintf("Remaining: %d",
-		p.workersNumber,
-	)
 }

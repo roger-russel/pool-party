@@ -17,3 +17,9 @@ It would be nice have some metrics about what is happening on the rotines pool, 
 ## 2020-11-13 using golang standard layout
 
 Golang standart layout is not that great layout but it is still something.
+
+## 2020-11-21 Queueds Runnins and Linked List
+
+I think there is a oportunity to improve about how the workers are queueds
+it may have problems with concurrency unexpected because it was poor made
+because it was not made expecting add new workers after it was started.
