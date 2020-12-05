@@ -185,10 +185,6 @@ func (p *Impl) Shutdown() (killedTasksIds []string) {
 
 }
 
-func (p *Impl) ShutdownGraceful() {
-
-}
-
 func (p *Impl) done() {
 
 	for wInfo := range p.chDone {
