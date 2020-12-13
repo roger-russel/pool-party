@@ -23,3 +23,11 @@ Golang standart layout is not that great layout but it is still something.
 I think there is a oportunity to improve about how the workers are queueds
 it may have problems with concurrency unexpected because it was poor made
 because it was not made expecting add new workers after it was started.
+
+## 2020-12-13 When should I send information about task done?
+
+There is a lot of places that I can use like:
+
+* On worker after the given function finished to run. I don't like this aprouch because I think it is from pool domain, and I will just be adding more variables on queued jobs.
+
+* On same go rotine that listen done task at first before call other go rotine from queue. I liked the ideia of putting on the for of chDone, but I will put it on the end, because the priority is on running the pool, and send information about what is happening will have less priority, but still will be send anyway.

@@ -34,8 +34,12 @@ func (q *queueImpl) get(inc *int) (w worker) {
 	if len(q.queued) > 0 {
 		w = q.queued[0]
 		q.queued = q.queued[1:]
-		*inc++
 		q.length = len(q.queued)
+
+		if inc != nil {
+			*inc++
+		}
+
 		return w
 	}
 

@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"sync"
 	"time"
 
 	"github.com/rs/xid"
@@ -70,6 +71,8 @@ type Impl struct {
 
 	//number of worker running
 	runningWorkers int
+
+	muCallNext sync.Mutex
 }
 
 //Server start pool as service
@@ -149,6 +152,9 @@ func (p *Impl) SetMaxPoolSize(size int) {
 //Call Next Worker to be executed
 func (p *Impl) callNextWorker() bool {
 
+	p.muCallNext.Lock()
+	defer p.muCallNext.Unlock()
+
 	if p.shuttingDown || p.size <= p.runningWorkers || p.queue.len() <= 0 {
 		return false
 	}
@@ -172,11 +178,12 @@ func (p *Impl) Shutdown() {
 	p.shuttingDown = true
 	p.chShutdown <- struct{}{}
 
-	/*
-		for _, w := range p.queue.len() {
-			p.chInfo <- w.Info(false, errQueuedTasksWillBeExecutedNoMore)
-		}
-	*/
+	w := p.queue.get(nil)
+	for w != nil {
+		p.chInfo <- w.Info(false, errQueuedTasksWillBeExecutedNoMore)
+		w = p.queue.get(nil)
+	}
+
 }
 
 /*GetInfoChannel returns the info channel used on pool
@@ -191,7 +198,7 @@ func (p *Impl) GetInfoChannel() chan *WorkerInfo {
 
 func (p *Impl) done() {
 
-	for range p.chDone {
+	for w := range p.chDone {
 
 		p.runningWorkers--
 
@@ -201,6 +208,8 @@ func (p *Impl) done() {
 		}
 
 		p.callNextWorker()
+
+		p.chInfo <- w
 
 	}
 }

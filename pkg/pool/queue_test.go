@@ -60,7 +60,7 @@ func Test_queueImpl_Get(t *testing.T) {
 			t.Errorf("unexpected id as received: %s", w1.ID())
 		}
 
-		w2 := q.get(&count)
+		w2 := q.get(nil)
 
 		if w2 != nil {
 			t.Errorf("unexpected worker from queue it was suposed to be empty but got: %+v", w2)
