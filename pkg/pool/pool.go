@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"sync"
 	"time"
 
 	"github.com/rs/xid"
@@ -66,12 +65,6 @@ type Impl struct {
 	//This channel receive info when the worker is finished
 	chInfo chan *WorkerInfo
 
-	//muQueue is to add and remove thread safe from queued slice
-	muQueue sync.Mutex
-
-	//queued workers slice
-	queued []worker
-
 	//queue
 	queue queue
 
@@ -86,6 +79,9 @@ func (p *Impl) Server() {
 	p.startedAt = time.Now()
 
 	go p.done()
+
+	//wait for done channel be on
+	time.Sleep(10 * time.Millisecond)
 
 	for p.callNextWorker() {
 		// call until false
@@ -111,9 +107,7 @@ func (p *Impl) Add(f func(taskID string) error) (taskID string, err error) {
 
 	taskID = xid.New().String()
 
-	p.muQueue.Lock()
-
-	p.queued = append(p.queued, &workerImpl{
+	p.queue.put(&workerImpl{
 		id:       taskID,
 		queuedAt: time.Now(),
 		run: func() error {
@@ -122,9 +116,9 @@ func (p *Impl) Add(f func(taskID string) error) (taskID string, err error) {
 		chDone: p.chDone,
 	})
 
-	p.muQueue.Unlock()
-
-	p.callNextWorker()
+	if p.started {
+		p.callNextWorker()
+	}
 
 	return taskID, nil
 }
@@ -165,7 +159,7 @@ func (p *Impl) callNextWorker() bool {
 		go w.Start()
 	}
 
-	return len(p.queued) > 0
+	return p.queue.len() > 0
 
 }
 
@@ -178,13 +172,21 @@ func (p *Impl) Shutdown() {
 	p.shuttingDown = true
 	p.chShutdown <- struct{}{}
 
-	p.muQueue.Lock()
-	defer p.muQueue.Unlock()
+	/*
+		for _, w := range p.queue.len() {
+			p.chInfo <- w.Info(false, errQueuedTasksWillBeExecutedNoMore)
+		}
+	*/
+}
 
-	for _, w := range p.queued {
-		p.chInfo <- w.Info(false, errQueuedTasksWillBeExecutedNoMore)
-	}
-
+/*GetInfoChannel returns the info channel used on pool
+ *The info channel will receive information about finished
+ *tasks.
+ *on shutdown it will receive all tasks which are not
+ *runned yet
+ */
+func (p *Impl) GetInfoChannel() chan *WorkerInfo {
+	return p.chInfo
 }
 
 func (p *Impl) done() {
@@ -201,14 +203,4 @@ func (p *Impl) done() {
 		p.callNextWorker()
 
 	}
-}
-
-/*GetInfoChannel returns the info channel used on pool
- *The info channel will receive information about finished
- *tasks.
- *on shutdown it will receive all tasks which are not
- *runned yet
- */
-func (p *Impl) GetInfoChannel() chan *WorkerInfo {
-	return p.chInfo
 }
