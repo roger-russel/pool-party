@@ -47,5 +47,7 @@ func (q *queueImpl) get(inc *int) (w worker) {
 }
 
 func (q *queueImpl) len() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	return q.length
 }
