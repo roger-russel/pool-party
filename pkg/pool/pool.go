@@ -9,14 +9,16 @@ import (
 
 //New Pool Server
 func New(size int) Pool {
+
 	return &Impl{
 		size:       size,
-		chDone:     make(chan WorkerInfo),
-		chInfo:     make(chan WorkerInfo),
-		chQuit:     make(chan bool),
-		chShutdown: make(chan bool),
+		chDone:     make(chan *WorkerInfo),
+		chQuit:     make(chan struct{}),
+		chShutdown: make(chan struct{}),
+		chInfo:     make(chan *WorkerInfo),
 		queue:      &queueImpl{},
 	}
+
 }
 
 //Pool to create a pool
@@ -26,16 +28,15 @@ type Pool interface {
 	Server()
 
 	// Add worker to pool
-	Add(f func() error) (id string, err error)
+	Add(f func(taskID string) error) (id string, err error)
 
 	// SetMaxPoolSize pool max size to a different number
 	SetMaxPoolSize(s int)
 
-	// Show status from pool
-	// Status() string
-
 	// Shutdown start shutdown pool server
-	Shutdown() (killedTasksIds []string)
+	Shutdown()
+
+	GetInfoChannel() chan *WorkerInfo
 }
 
 //Impl is the Pool interface implementation
@@ -54,16 +55,16 @@ type Impl struct {
 	shuttingDown bool
 
 	//Quit is the last channel to be called, it will lead to end of server.
-	chQuit chan bool
+	chQuit chan struct{}
 
 	//Done channel called when an workerd finish
-	chDone chan WorkerInfo
-
-	//chInfo will send realtime info about what is happening
-	chInfo chan WorkerInfo
+	chDone chan *WorkerInfo
 
 	//Shutdown channel called when want to shutdown this pool it will send a shutdown fignal for ,
-	chShutdown chan bool
+	chShutdown chan struct{}
+
+	//This channel receive info when the worker is finished
+	chInfo chan *WorkerInfo
 
 	//muQueue is to add and remove thread safe from queued slice
 	muQueue sync.Mutex
@@ -93,36 +94,39 @@ func (p *Impl) Server() {
 	<-p.chQuit
 
 	close(p.chQuit)
-	close(p.chInfo)
 	close(p.chDone)
 	close(p.chShutdown)
+	close(p.chInfo)
 
 }
 
-//Add new workers to pool
-func (p *Impl) Add(f func() error) (id string, err error) {
+/*Add new workers to pool
+ *The given function will be queued and called further
+ */
+func (p *Impl) Add(f func(taskID string) error) (taskID string, err error) {
 
 	if p.shuttingDown {
 		return "", errAddONShuttingDown
 	}
 
-	id = xid.New().String()
+	taskID = xid.New().String()
 
 	p.muQueue.Lock()
 
 	p.queued = append(p.queued, &workerImpl{
-		id:       id,
+		id:       taskID,
 		queuedAt: time.Now(),
 		run: func() error {
-			return f()
+			return f(taskID)
 		},
+		chDone: p.chDone,
 	})
 
 	p.muQueue.Unlock()
 
 	p.callNextWorker()
 
-	return id, nil
+	return taskID, nil
 }
 
 /*SetMaxPoolSize pool max size to a different number
@@ -158,7 +162,7 @@ func (p *Impl) callNextWorker() bool {
 	w := p.queue.get(&p.runningWorkers)
 
 	if w != nil {
-		go w.Start(p.chDone)
+		go w.Start()
 	}
 
 	return len(p.queued) > 0
@@ -169,36 +173,42 @@ func (p *Impl) callNextWorker() bool {
  *the running tasks finish, for a Graceful shutdown take a look into
  *which will try to run all tasks on pool which are been queued ShutdownGraceful
  */
-func (p *Impl) Shutdown() (killedTasksIds []string) {
+func (p *Impl) Shutdown() {
 
 	p.shuttingDown = true
-	p.chShutdown <- true
+	p.chShutdown <- struct{}{}
 
 	p.muQueue.Lock()
 	defer p.muQueue.Unlock()
 
 	for _, w := range p.queued {
-		killedTasksIds = append(killedTasksIds, w.ID())
+		p.chInfo <- w.Info(false, errQueuedTasksWillBeExecutedNoMore)
 	}
-
-	return killedTasksIds
 
 }
 
 func (p *Impl) done() {
 
-	for wInfo := range p.chDone {
+	for range p.chDone {
 
 		p.runningWorkers--
 
-		p.chInfo <- wInfo
-
 		if p.shuttingDown && p.runningWorkers == 0 {
-			p.chQuit <- true
+			p.chQuit <- struct{}{}
 			break
 		}
 
 		p.callNextWorker()
 
 	}
+}
+
+/*GetInfoChannel returns the info channel used on pool
+ *The info channel will receive information about finished
+ *tasks.
+ *on shutdown it will receive all tasks which are not
+ *runned yet
+ */
+func (p *Impl) GetInfoChannel() chan *WorkerInfo {
+	return p.chInfo
 }

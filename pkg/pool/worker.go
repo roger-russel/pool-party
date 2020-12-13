@@ -5,8 +5,9 @@ import (
 )
 
 type worker interface {
-	Start(chDone chan WorkerInfo)
+	Start()
 	ID() string
+	Info(CalledToRun bool, err error) *WorkerInfo
 }
 
 //workerImpl Struct
@@ -15,22 +16,29 @@ type workerImpl struct {
 	id        string
 	queuedAt  time.Time
 	startedAt time.Time
+	chDone    chan *WorkerInfo
 }
 
-func (w *workerImpl) Start(chDone chan WorkerInfo) {
+func (w *workerImpl) Start() {
 
 	w.startedAt = time.Now()
 	err := w.run()
 
-	chDone <- &WorkerInfoImpl{
-		id:            w.id,
-		err:           err,
-		queuedAt:      w.queuedAt,
-		waitingTime:   w.startedAt.Sub(w.queuedAt),
-		executionTime: time.Since(w.startedAt),
-	}
+	w.chDone <- w.Info(true, err)
+
 }
 
 func (w *workerImpl) ID() string {
 	return w.id
+}
+
+func (w *workerImpl) Info(CalledToRun bool, err error) *WorkerInfo {
+	return &WorkerInfo{
+		ID:            w.id,
+		QueuedAt:      w.queuedAt,
+		WaitingTime:   w.startedAt.Sub(w.queuedAt),
+		ExecutionTime: time.Since(w.startedAt),
+		CalledToRun:   CalledToRun,
+		Err:           err,
+	}
 }
