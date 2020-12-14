@@ -22,6 +22,7 @@ type queueImpl struct {
 func (q *queueImpl) put(w worker) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+
 	q.queued = append(q.queued, w)
 	q.length = len(q.queued)
 }
@@ -49,5 +50,6 @@ func (q *queueImpl) get(inc *int) (w worker) {
 func (q *queueImpl) len() int {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+
 	return q.length
 }

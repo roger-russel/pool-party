@@ -72,22 +72,26 @@ type Impl struct {
 	//number of worker running
 	runningWorkers int
 
-	muCallNext sync.Mutex
+	mu sync.Mutex
 }
 
 //Server start pool as service
 func (p *Impl) Server() {
 
-	p.started = true
 	p.startedAt = time.Now()
+
+	p.mu.Lock()
+	p.started = true
+	p.mu.Unlock()
 
 	go p.done()
 
 	//wait for done channel be on
 	time.Sleep(10 * time.Millisecond)
 
-	for p.callNextWorker() {
-		// call until false
+	until := p.callNextWorker()
+	for until {
+		until = p.callNextWorker()
 	}
 
 	<-p.chQuit
@@ -104,9 +108,14 @@ func (p *Impl) Server() {
  */
 func (p *Impl) Add(f func(taskID string) error) (taskID string, err error) {
 
+	p.mu.Lock()
+
 	if p.shuttingDown {
+		p.mu.Unlock()
 		return "", errAddONShuttingDown
 	}
+
+	p.mu.Unlock()
 
 	taskID = xid.New().String()
 
@@ -119,9 +128,7 @@ func (p *Impl) Add(f func(taskID string) error) (taskID string, err error) {
 		chDone: p.chDone,
 	})
 
-	if p.started {
-		p.callNextWorker()
-	}
+	p.callNextWorker()
 
 	return taskID, nil
 }
@@ -136,15 +143,20 @@ func (p *Impl) Add(f func(taskID string) error) (taskID string, err error) {
  */
 func (p *Impl) SetMaxPoolSize(size int) {
 
+	//p.mu.Lock()
+
 	current := p.size
 	p.size = size
+
+	//p.mu.Unlock()
 
 	if current >= size {
 		return
 	}
 
-	for p.callNextWorker() {
-		// call until false
+	until := p.callNextWorker()
+	for until {
+		until = p.callNextWorker()
 	}
 
 }
@@ -152,10 +164,10 @@ func (p *Impl) SetMaxPoolSize(size int) {
 //Call Next Worker to be executed
 func (p *Impl) callNextWorker() bool {
 
-	p.muCallNext.Lock()
-	defer p.muCallNext.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if p.shuttingDown || p.size <= p.runningWorkers || p.queue.len() <= 0 {
+	if !p.started || p.shuttingDown || p.size <= p.runningWorkers || p.queue.len() <= 0 {
 		return false
 	}
 
@@ -200,7 +212,9 @@ func (p *Impl) done() {
 
 	for w := range p.chDone {
 
+		p.mu.Lock()
 		p.runningWorkers--
+		p.mu.Unlock()
 
 		if p.shuttingDown && p.runningWorkers == 0 {
 			p.chQuit <- struct{}{}
