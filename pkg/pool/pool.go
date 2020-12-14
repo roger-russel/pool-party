@@ -143,12 +143,12 @@ func (p *Impl) Add(f func(taskID string) error) (taskID string, err error) {
  */
 func (p *Impl) SetMaxPoolSize(size int) {
 
-	//p.mu.Lock()
+	p.mu.Lock()
 
 	current := p.size
 	p.size = size
 
-	//p.mu.Unlock()
+	p.mu.Unlock()
 
 	if current >= size {
 		return

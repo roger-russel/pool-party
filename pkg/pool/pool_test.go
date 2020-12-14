@@ -564,11 +564,14 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 
 	})
 
-	t.Run("multipe adds with multiples rotine after server", func(t *testing.T) {
+	t.Run("Resize with Qeued tasks to a bigger pool", func(t *testing.T) {
 		chQuit := make(chan struct{})
+		chWait := make(chan struct{})
+
 		chMap := make(chan string)
 
 		p := New(1)
+		ch := p.GetInfoChannel()
 
 		checkListGenerated := []string{}
 		checkListReceived := []string{}
@@ -579,15 +582,58 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 		nMaxIter := nIter * 2
 
 		go func() {
-			count := 0
+			//count start from 1 becase the first one will be waiting
+			count := 1
 			for xid := range chMap {
 				count++
+
 				checkListGenerated = append(checkListGenerated, xid)
 				if count >= nMaxIter {
+					chWait <- struct{}{}
+				}
+
+				if count > nMaxIter {
 					break
 				}
 			}
+
 		}()
+
+		go func() {
+
+			count := 0
+
+			for w := range ch {
+				count++
+
+				checkListReceived = append(checkListReceived, w.ID)
+
+				if count >= nMaxIter {
+					break
+				}
+
+			}
+
+			chQuit <- struct{}{}
+
+		}()
+
+		time.Sleep(10 * time.Microsecond)
+
+		xid, err := p.Add(func(taskID string) error {
+			<-chWait
+			return nil
+		})
+
+		if xid == "" {
+			t.Error("p.Add() returned an empty ID")
+		}
+
+		if err != nil {
+			t.Errorf("p.Add() returned an inexpected error: %s", err)
+		}
+
+		chMap <- xid
 
 		for i := 0; i < nRoutines; i++ {
 
@@ -614,26 +660,6 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 			}()
 
 		}
-
-		ch := p.GetInfoChannel()
-
-		go func() {
-			count := 0
-
-			for w := range ch {
-				count++
-
-				checkListReceived = append(checkListReceived, w.ID)
-
-				if count >= nMaxIter {
-					break
-				}
-
-			}
-
-			chQuit <- struct{}{}
-
-		}()
 
 		go p.Server()
 
