@@ -187,10 +187,13 @@ func (p *Impl) callNextWorker() bool {
  */
 func (p *Impl) Shutdown() {
 
+	p.mu.Lock()
 	p.shuttingDown = true
-	p.chShutdown <- struct{}{}
+	p.mu.Unlock()
+	//	p.chShutdown <- struct{}{}
 
 	w := p.queue.get(nil)
+
 	for w != nil {
 		p.chInfo <- w.Info(false, errQueuedTasksWillBeExecutedNoMore)
 		w = p.queue.get(nil)
