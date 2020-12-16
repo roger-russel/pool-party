@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -577,18 +578,19 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 		checkListReceived := []string{}
 
 		nRoutines := 10
-		nPerRoutines := 100
+		nPerRoutines := 20
 		nIter := nRoutines * nPerRoutines
 		nMaxIter := nIter * 2
 
 		go func() {
 			//count start from 1 becase the first one will be waiting
-			count := 1
+			count := 0
 			for xid := range chMap {
 				count++
 
 				checkListGenerated = append(checkListGenerated, xid)
-				if count >= nMaxIter {
+
+				if count == nMaxIter {
 					chWait <- struct{}{}
 				}
 
@@ -608,17 +610,18 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 
 				checkListReceived = append(checkListReceived, w.ID)
 
-				if count >= nMaxIter {
+				if count > nMaxIter {
 					break
 				}
 
 			}
 
+			fmt.Printf("Limite--->%d", count)
 			chQuit <- struct{}{}
 
 		}()
 
-		time.Sleep(10 * time.Microsecond)
+		time.Sleep(100 * time.Microsecond)
 
 		xid, err := p.Add(func(taskID string) error {
 			<-chWait
@@ -641,7 +644,6 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 
 				for j := 0; j < nPerRoutines; j++ {
 					xid, err := p.Add(func(taskID string) error {
-						time.Sleep(100 * time.Millisecond)
 						return nil
 					})
 
@@ -697,13 +699,40 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 			t.Errorf("Generate list and Receive list have differente sizes. Generate: %d, Received: %d", len(checkListGenerated), len(checkListReceived))
 		}
 
-		sort.Strings(checkListGenerated)
-		sort.Strings(checkListReceived)
+		mGenerated := toMap(checkListGenerated, t)
+		mReceived := toMap(checkListReceived, t)
 
-		if !cmp.Equal(checkListGenerated, checkListReceived) {
-			t.Errorf("something went wrong: %s", cmp.Diff(checkListGenerated, checkListReceived))
+		for v := range mGenerated {
+			if _, ok := mReceived[v]; !ok {
+				t.Errorf("id not found: %s", v)
+			}
+		}
+		/*
+			if !cmp.Equal(mGenerated, mReceived) {
+				t.Errorf("something went wrong: %s", cmp.Diff(mGenerated, mReceived))
+			}
+
+			if !cmp.Equal(checkListGenerated, checkListReceived) {
+				t.Errorf("something went wrong: %s", cmp.Diff(checkListGenerated, checkListReceived))
+			}
+		*/
+	})
+
+}
+
+func toMap(slice []string, t *testing.T) map[string]int {
+	m := make(map[string]int)
+
+	for i, v := range slice {
+
+		if ip, ok := m[v]; ok {
+			t.Errorf("duplicated index detected: %s - %d, %d", v, i, ip)
 		}
 
-	})
+		m[v] = i
+
+	}
+
+	return m
 
 }
