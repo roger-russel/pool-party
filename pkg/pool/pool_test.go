@@ -707,15 +707,7 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 				t.Errorf("id not found: %s", v)
 			}
 		}
-		/*
-			if !cmp.Equal(mGenerated, mReceived) {
-				t.Errorf("something went wrong: %s", cmp.Diff(mGenerated, mReceived))
-			}
 
-			if !cmp.Equal(checkListGenerated, checkListReceived) {
-				t.Errorf("something went wrong: %s", cmp.Diff(checkListGenerated, checkListReceived))
-			}
-		*/
 	})
 
 }
