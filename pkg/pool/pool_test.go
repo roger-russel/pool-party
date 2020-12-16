@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -616,12 +615,11 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 
 			}
 
-			fmt.Printf("Limite--->%d", count)
 			chQuit <- struct{}{}
 
 		}()
 
-		time.Sleep(100 * time.Microsecond)
+		time.Sleep(10 * time.Microsecond)
 
 		xid, err := p.Add(func(taskID string) error {
 			<-chWait
