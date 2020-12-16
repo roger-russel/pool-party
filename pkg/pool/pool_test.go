@@ -15,18 +15,10 @@ func TestPool_NewPool(t *testing.T) {
 
 		ch := make(chan struct{})
 
-		xid, err := p.Add(func(taskID string) error {
+		add(t, p, func(taskID string) error {
 			ch <- struct{}{}
 			return nil
 		})
-
-		if xid == "" {
-			t.Error("p.Add() returned an empty ID")
-		}
-
-		if err != nil {
-			t.Errorf("p.Add() returned an inexpected error: %s", err)
-		}
 
 		go p.Server()
 
@@ -41,17 +33,9 @@ func TestPool_GettingDoneInfo(t *testing.T) {
 	t.Run("A simple information", func(t *testing.T) {
 		p := New(1)
 
-		xid, err := p.Add(func(taskID string) error {
+		xid := add(t, p, func(taskID string) error {
 			return nil
 		})
-
-		if xid == "" {
-			t.Error("p.Add() returned an empty ID")
-		}
-
-		if err != nil {
-			t.Errorf("p.Add() returned an inexpected error: %s", err)
-		}
 
 		ch := p.GetInfoChannel()
 
@@ -75,19 +59,10 @@ func TestPool_AddingOnBeforeRunningServer(t *testing.T) {
 
 		p := New(1)
 
-		xid, err1 := p.Add(func(taskID string) error {
+		xid := add(t, p, func(taskID string) error {
 			ch <- struct{ ID string }{ID: taskID}
-
 			return nil
 		})
-
-		if xid == "" {
-			t.Error("p.Add() returned an empty ID")
-		}
-
-		if err1 != nil {
-			t.Errorf("p.Add() returned an inexpected error: %s", err1)
-		}
 
 		go p.Server()
 
@@ -108,17 +83,9 @@ func TestPool_AddingOnBeforeRunningServer(t *testing.T) {
 		nIter := 1000
 
 		for i := 0; i < nIter; i++ {
-			xid, err := p.Add(func(taskID string) error {
+			xid := add(t, p, func(taskID string) error {
 				return nil
 			})
-
-			if xid == "" {
-				t.Error("p.Add() returned an empty ID")
-			}
-
-			if err != nil {
-				t.Errorf("p.Add() returned an inexpected error: %s", err)
-			}
 
 			checkList[xid] = false
 		}
@@ -155,15 +122,6 @@ func TestPool_AddingOnBeforeRunningServer(t *testing.T) {
 
 		<-chQuit
 
-		/*
-			if err2 != nil {
-				t.Errorf("p.Add() returned an inexpected error: %s", err1)
-			}
-
-			if wf.ID != xid2 {
-				t.Errorf("unexpected ID on wf, got: %s", wf.ID)
-			}
-		*/
 	})
 
 	t.Run("multipe adds with multiples rotine before server", func(t *testing.T) {
@@ -195,17 +153,9 @@ func TestPool_AddingOnBeforeRunningServer(t *testing.T) {
 			go func() {
 
 				for j := 0; j < nPerRoutines; j++ {
-					xid, err := p.Add(func(taskID string) error {
+					xid := add(t, p, func(taskID string) error {
 						return nil
 					})
-
-					if xid == "" {
-						t.Error("p.Add() returned an empty ID")
-					}
-
-					if err != nil {
-						t.Errorf("p.Add() returned an inexpected error: %s", err)
-					}
 
 					chMap <- xid
 
@@ -261,35 +211,23 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 
 		p := New(1)
 
-		xid1, err1 := p.Add(func(taskID string) error {
+		add(t, p, func(taskID string) error {
 			time.Sleep(5 * time.Millisecond)
 
 			return nil
 		})
 
-		if xid1 == "" {
-			t.Error("p.Add() returned an empty ID")
-		}
-
-		if err1 != nil {
-			t.Errorf("p.Add() returned an inexpected error: %s", err1)
-		}
-
 		go p.Server()
 
-		xid2, err2 := p.Add(func(taskID string) error {
+		xid := add(t, p, func(taskID string) error {
 			time.Sleep(10 * time.Millisecond)
 			ch <- struct{ ID string }{ID: taskID}
 			return nil
 		})
 
-		if err2 != nil {
-			t.Errorf("p.Add() returned an inexpected error: %s", err1)
-		}
-
 		wf := <-ch
 
-		if wf.ID != xid2 {
+		if wf.ID != xid {
 			t.Errorf("unexpected ID on wf, got: %s", wf.ID)
 		}
 
@@ -308,17 +246,10 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 		nIter := 1000
 
 		for i := 0; i < nIter; i++ {
-			xid, err := p.Add(func(taskID string) error {
+
+			xid := add(t, p, func(taskID string) error {
 				return nil
 			})
-
-			if xid == "" {
-				t.Error("p.Add() returned an empty ID")
-			}
-
-			if err != nil {
-				t.Errorf("p.Add() returned an inexpected error: %s", err)
-			}
 
 			checkList[xid] = false
 		}
@@ -353,15 +284,12 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 
 		<-chQuit
 
-		/*
-			if err2 != nil {
-				t.Errorf("p.Add() returned an inexpected error: %s", err1)
+		for i, v := range checkList {
+			if v != true {
+				t.Errorf("id was not received on info channel: %s", i)
 			}
+		}
 
-			if wf.ID != xid2 {
-				t.Errorf("unexpected ID on wf, got: %s", wf.ID)
-			}
-		*/
 	})
 
 	t.Run("multipe adds with multiples rotine after server", func(t *testing.T) {
@@ -394,17 +322,10 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 			go func() {
 
 				for j := 0; j < nPerRoutines; j++ {
-					xid, err := p.Add(func(taskID string) error {
+
+					xid := add(t, p, func(taskID string) error {
 						return nil
 					})
-
-					if xid == "" {
-						t.Error("p.Add() returned an empty ID")
-					}
-
-					if err != nil {
-						t.Errorf("p.Add() returned an inexpected error: %s", err)
-					}
 
 					chMap <- xid
 
@@ -441,17 +362,10 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 			go func() {
 
 				for j := 0; j < nPerRoutines; j++ {
-					xid, err := p.Add(func(taskID string) error {
+
+					xid := add(t, p, func(taskID string) error {
 						return nil
 					})
-
-					if xid == "" {
-						t.Error("p.Add() returned an empty ID")
-					}
-
-					if err != nil {
-						t.Errorf("p.Add() returned an inexpected error: %s", err)
-					}
 
 					chMap <- xid
 
@@ -486,37 +400,24 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 
 		p := New(100)
 
-		xid1, err1 := p.Add(func(taskID string) error {
+		add(t, p, func(taskID string) error {
 			time.Sleep(5 * time.Millisecond)
-
 			return nil
 		})
-
-		if xid1 == "" {
-			t.Error("p.Add() returned an empty ID")
-		}
-
-		if err1 != nil {
-			t.Errorf("p.Add() returned an inexpected error: %s", err1)
-		}
 
 		go p.Server()
 
 		p.SetMaxPoolSize(50)
 
-		xid2, err2 := p.Add(func(taskID string) error {
+		xidAfterServerStarted := add(t, p, func(taskID string) error {
 			time.Sleep(10 * time.Millisecond)
 			ch <- struct{ ID string }{ID: taskID}
 			return nil
 		})
 
-		if err2 != nil {
-			t.Errorf("p.Add() returned an inexpected error: %s", err1)
-		}
-
 		wf := <-ch
 
-		if wf.ID != xid2 {
+		if wf.ID != xidAfterServerStarted {
 			t.Errorf("unexpected ID on wf, got: %s", wf.ID)
 		}
 
@@ -528,37 +429,24 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 
 		p := New(10)
 
-		xid1, err1 := p.Add(func(taskID string) error {
+		add(t, p, func(taskID string) error {
 			time.Sleep(5 * time.Millisecond)
-
 			return nil
 		})
-
-		if xid1 == "" {
-			t.Error("p.Add() returned an empty ID")
-		}
-
-		if err1 != nil {
-			t.Errorf("p.Add() returned an inexpected error: %s", err1)
-		}
 
 		go p.Server()
 
 		p.SetMaxPoolSize(50)
 
-		xid2, err2 := p.Add(func(taskID string) error {
+		xidAfterServerStarted := add(t, p, func(taskID string) error {
 			time.Sleep(10 * time.Millisecond)
 			ch <- struct{ ID string }{ID: taskID}
 			return nil
 		})
 
-		if err2 != nil {
-			t.Errorf("p.Add() returned an inexpected error: %s", err1)
-		}
-
 		wf := <-ch
 
-		if wf.ID != xid2 {
+		if wf.ID != xidAfterServerStarted {
 			t.Errorf("unexpected ID on wf, got: %s", wf.ID)
 		}
 
@@ -621,18 +509,10 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 
 		time.Sleep(10 * time.Microsecond)
 
-		xid, err := p.Add(func(taskID string) error {
+		xid := add(t, p, func(taskID string) error {
 			<-chWait
 			return nil
 		})
-
-		if xid == "" {
-			t.Error("p.Add() returned an empty ID")
-		}
-
-		if err != nil {
-			t.Errorf("p.Add() returned an inexpected error: %s", err)
-		}
 
 		chMap <- xid
 
@@ -641,17 +521,10 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 			go func() {
 
 				for j := 0; j < nPerRoutines; j++ {
-					xid, err := p.Add(func(taskID string) error {
+
+					xid := add(t, p, func(taskID string) error {
 						return nil
 					})
-
-					if xid == "" {
-						t.Error("p.Add() returned an empty ID")
-					}
-
-					if err != nil {
-						t.Errorf("p.Add() returned an inexpected error: %s", err)
-					}
 
 					chMap <- xid
 
@@ -670,18 +543,11 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 			go func() {
 
 				for j := 0; j < nPerRoutines; j++ {
-					xid, err := p.Add(func(taskID string) error {
+
+					xid := add(t, p, func(taskID string) error {
 						time.Sleep(10 * time.Millisecond)
 						return nil
 					})
-
-					if xid == "" {
-						t.Error("p.Add() returned an empty ID")
-					}
-
-					if err != nil {
-						t.Errorf("p.Add() returned an inexpected error: %s", err)
-					}
 
 					chMap <- xid
 
@@ -697,8 +563,8 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 			t.Errorf("Generate list and Receive list have differente sizes. Generate: %d, Received: %d", len(checkListGenerated), len(checkListReceived))
 		}
 
-		mGenerated := toMap(checkListGenerated, t)
-		mReceived := toMap(checkListReceived, t)
+		mGenerated := toMap(t, checkListGenerated)
+		mReceived := toMap(t, checkListReceived)
 
 		for v := range mGenerated {
 			if _, ok := mReceived[v]; !ok {
@@ -710,7 +576,45 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 
 }
 
-func toMap(slice []string, t *testing.T) map[string]int {
+func TestPool_Shutdown(t *testing.T) {
+	/*
+		t.Run("Shutdown", func(t *testing.T) {
+			chQuit := make(chan struct{})
+			chWait := make(chan struct{})
+
+			p := New(1)
+			ch := p.GetInfoChannel()
+
+			go p.Server()
+
+			add(t, p, func(taskID string) error {
+				<-chWait
+				return nil
+			})
+
+			<-chQuit
+
+		})
+	*/
+}
+
+func add(t *testing.T, p Pool, f func(taskID string) error) string {
+
+	xid, err := p.Add(f)
+
+	if xid == "" {
+		t.Error("p.Add() returned an empty ID")
+	}
+
+	if err != nil {
+		t.Errorf("p.Add() returned an inexpected error: %s", err)
+	}
+
+	return xid
+
+}
+
+func toMap(t *testing.T, slice []string) map[string]int {
 	m := make(map[string]int)
 
 	for i, v := range slice {
