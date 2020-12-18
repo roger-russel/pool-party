@@ -96,10 +96,12 @@ func (p *Impl) Server() {
 
 	<-p.chQuit
 
+	time.Sleep(10 * time.Microsecond)
+
 	close(p.chQuit)
 	close(p.chDone)
 	close(p.chShutdown)
-	close(p.chInfo)
+	//close(p.chInfo)
 
 }
 

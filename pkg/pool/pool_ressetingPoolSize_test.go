@@ -11,7 +11,7 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 
 		ch := make(chan struct{ ID string })
 
-		p := New(100)
+		p := New(10)
 
 		add(t, p, func(taskID string) error {
 			time.Sleep(5 * time.Millisecond)
@@ -20,7 +20,7 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 
 		go p.Server()
 
-		p.SetMaxPoolSize(50)
+		p.SetMaxPoolSize(5)
 
 		xidAfterServerStarted := add(t, p, func(taskID string) error {
 			time.Sleep(10 * time.Millisecond)

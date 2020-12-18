@@ -40,3 +40,17 @@ happening.
 I hope those race condition will be fixed.
 
 It is not really a big problem, I started to do this pool to learn more about multi-thread strategies any way.
+
+
+## 2020-12-16 Cloase channels with channels ...
+
+It is a little strange for me, but it seams to be the best solution to close channels on range
+without happening race conditions.
+
+I took a look into some methods and I think that I will go with the selection option
+
+select:
+case <- chShutdown
+break
+
+something like that
