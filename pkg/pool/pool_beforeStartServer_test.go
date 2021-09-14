@@ -5,9 +5,7 @@ import (
 )
 
 func TestPool_AddingOnBeforeRunningServer(t *testing.T) {
-
 	t.Run("A simple information", func(t *testing.T) {
-
 		ch := make(chan struct{ ID string })
 
 		p := New(1)
@@ -24,10 +22,9 @@ func TestPool_AddingOnBeforeRunningServer(t *testing.T) {
 		if wf.ID != xid {
 			t.Errorf("unexpected ID on wf, got: %s", wf.ID)
 		}
-
 	})
 
-	t.Run("multipe adds on same rotine before server", func(t *testing.T) {
+	t.Run("multiple adds on same rotine before server", func(t *testing.T) {
 		chQuit := make(chan struct{})
 		p := New(100)
 
@@ -64,20 +61,17 @@ func TestPool_AddingOnBeforeRunningServer(t *testing.T) {
 				if count >= nIter {
 					break
 				}
-
 			}
 
 			chQuit <- struct{}{}
-
 		}()
 
 		go p.Server()
 
 		<-chQuit
-
 	})
 
-	t.Run("multipe adds with multiples rotine before server", func(t *testing.T) {
+	t.Run("multiple adds with multiples rotine before server", func(t *testing.T) {
 		chQuit := make(chan struct{})
 		chMap := make(chan string)
 		chNext := make(chan struct{})
@@ -102,20 +96,15 @@ func TestPool_AddingOnBeforeRunningServer(t *testing.T) {
 		}()
 
 		for i := 0; i < nRoutines; i++ {
-
 			go func() {
-
 				for j := 0; j < nPerRoutines; j++ {
 					xid := add(t, p, func(taskID string) error {
 						return nil
 					})
 
 					chMap <- xid
-
 				}
-
 			}()
-
 		}
 
 		<-chNext
@@ -141,17 +130,13 @@ func TestPool_AddingOnBeforeRunningServer(t *testing.T) {
 				if count >= nMaxIter {
 					break
 				}
-
 			}
 
 			chQuit <- struct{}{}
-
 		}()
 
 		go p.Server()
 
 		<-chQuit
-
 	})
-
 }

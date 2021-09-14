@@ -7,9 +7,8 @@ import (
 	"github.com/rs/xid"
 )
 
-//New Pool Server
+// New Pool Server
 func New(size int) Pool {
-
 	return &Impl{
 		size:       size,
 		chDone:     make(chan *WorkerInfo),
@@ -18,13 +17,11 @@ func New(size int) Pool {
 		chInfo:     make(chan *WorkerInfo),
 		queue:      &queueImpl{},
 	}
-
 }
 
-//Pool to create a pool
+// Pool to create a pool
 type Pool interface {
-
-	// Server will be a pool server wich will wait until a shootdown as send
+	// Server will be a pool server which will wait until a shootdown as send
 	Server()
 
 	// Add worker to pool
@@ -39,10 +36,10 @@ type Pool interface {
 	GetInfoChannel() chan *WorkerInfo
 }
 
-//Impl is the Pool interface implementation
+// Impl is the Pool interface implementation
 type Impl struct {
 
-	//Pool size
+	// Pool size
 	size int
 
 	// started is true when the pool is already calling the workers ( Run() or Server() )
@@ -51,33 +48,32 @@ type Impl struct {
 	// Time of the run was called
 	startedAt time.Time
 
-	//shuttingDown is true when this pool is asked to shutdown
+	// shuttingDown is true when this pool is asked to shutdown
 	shuttingDown bool
 
-	//Quit is the last channel to be called, it will lead to end of server.
+	// Quit is the last channel to be called, it will lead to end of server.
 	chQuit chan struct{}
 
-	//Done channel called when an workerd finish
+	// Done channel called when an workerd finish
 	chDone chan *WorkerInfo
 
-	//Shutdown channel called when want to shutdown this pool it will send a shutdown fignal for ,
+	// Shutdown channel called when want to shutdown this pool it will send a shutdown fignal for ,
 	chShutdown chan struct{}
 
-	//This channel receive info when the worker is finished
+	// This channel receive info when the worker is finished
 	chInfo chan *WorkerInfo
 
-	//queue
+	// queue
 	queue queue
 
-	//number of worker running
+	// number of worker running
 	runningWorkers int
 
 	mu sync.Mutex
 }
 
-//Server start pool as service
+// Server start pool as service
 func (p *Impl) Server() {
-
 	p.startedAt = time.Now()
 
 	p.mu.Lock()
@@ -86,7 +82,7 @@ func (p *Impl) Server() {
 
 	go p.done()
 
-	//wait for done channel be on
+	// wait for done channel be on
 	time.Sleep(10 * time.Millisecond)
 
 	until := p.callNextWorker()
@@ -101,15 +97,13 @@ func (p *Impl) Server() {
 	close(p.chQuit)
 	close(p.chDone)
 	close(p.chShutdown)
-	//close(p.chInfo)
-
+	// close(p.chInfo)
 }
 
 /*Add new workers to pool
  *The given function will be queued and called further
  */
 func (p *Impl) Add(f func(taskID string) error) (taskID string, err error) {
-
 	p.mu.Lock()
 
 	if p.shuttingDown {
@@ -144,7 +138,6 @@ func (p *Impl) Add(f func(taskID string) error) (taskID string, err error) {
  * it should call a new worker or not.
  */
 func (p *Impl) SetMaxPoolSize(size int) {
-
 	p.mu.Lock()
 
 	current := p.size
@@ -160,12 +153,10 @@ func (p *Impl) SetMaxPoolSize(size int) {
 	for until {
 		until = p.callNextWorker()
 	}
-
 }
 
-//Call Next Worker to be executed
+// Call Next Worker to be executed
 func (p *Impl) callNextWorker() bool {
-
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -180,7 +171,6 @@ func (p *Impl) callNextWorker() bool {
 	}
 
 	return p.queue.len() > 0
-
 }
 
 /*Shutdown force a shutdown on application, it will wait only for
@@ -188,7 +178,6 @@ func (p *Impl) callNextWorker() bool {
  *which will try to run all tasks on pool which are been queued ShutdownGraceful
  */
 func (p *Impl) Shutdown() {
-
 	p.mu.Lock()
 	p.shuttingDown = true
 	p.mu.Unlock()
@@ -200,7 +189,6 @@ func (p *Impl) Shutdown() {
 		p.chInfo <- w.Info(false, errQueuedTasksWillBeExecutedNoMore)
 		w = p.queue.get(nil)
 	}
-
 }
 
 /*GetInfoChannel returns the info channel used on pool
@@ -214,9 +202,7 @@ func (p *Impl) GetInfoChannel() chan *WorkerInfo {
 }
 
 func (p *Impl) done() {
-
 	for w := range p.chDone {
-
 		p.mu.Lock()
 		p.runningWorkers--
 		p.mu.Unlock()
@@ -229,6 +215,5 @@ func (p *Impl) done() {
 		p.callNextWorker()
 
 		p.chInfo <- w
-
 	}
 }

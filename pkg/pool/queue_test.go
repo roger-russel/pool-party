@@ -26,7 +26,6 @@ func Test_queueImpl_put(t *testing.T) {
 		if q.len() != 1 {
 			t.Errorf("queue dont looks like it increased lenth of queued workers, got: %d", q.len())
 		}
-
 	})
 }
 
@@ -63,8 +62,7 @@ func Test_queueImpl_Get(t *testing.T) {
 		w2 := q.get(nil)
 
 		if w2 != nil {
-			t.Errorf("unexpected worker from queue it was suposed to be empty but got: %+v", w2)
+			t.Errorf("unexpected worker from queue it was supposed to be empty but got: %+v", w2)
 		}
-
 	})
 }

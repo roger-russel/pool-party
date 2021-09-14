@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-//WorkerInfo return success information
+// WorkerInfo return success information
 type WorkerInfo struct {
 	ID            string
 	QueuedAt      time.Time

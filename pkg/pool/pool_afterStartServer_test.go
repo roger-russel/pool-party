@@ -8,17 +8,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+//nolint:gocognit //it is hard so...
 func TestPool_AddingOnRunningServer(t *testing.T) {
-
 	t.Run("A simple information", func(t *testing.T) {
-
 		ch := make(chan struct{ ID string })
-
 		p := New(1)
 
 		add(t, p, func(taskID string) error {
 			time.Sleep(5 * time.Millisecond)
-
 			return nil
 		})
 
@@ -35,10 +32,9 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 		if wf.ID != xid {
 			t.Errorf("unexpected ID on wf, got: %s", wf.ID)
 		}
-
 	})
 
-	t.Run("multipe adds on same rotine after server", func(t *testing.T) {
+	t.Run("multiple adds on same rotine after server", func(t *testing.T) {
 		chQuit := make(chan struct{})
 
 		p := New(100)
@@ -51,7 +47,6 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 		nIter := 1000
 
 		for i := 0; i < nIter; i++ {
-
 			xid := add(t, p, func(taskID string) error {
 				return nil
 			})
@@ -80,11 +75,9 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 				if count >= nIter {
 					break
 				}
-
 			}
 
 			chQuit <- struct{}{}
-
 		}()
 
 		<-chQuit
@@ -94,10 +87,9 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 				t.Errorf("id was not received on info channel: %s", i)
 			}
 		}
-
 	})
 
-	t.Run("multipe adds with multiples rotine after server", func(t *testing.T) {
+	t.Run("multiple adds with multiples rotine after server", func(t *testing.T) {
 		chQuit := make(chan struct{})
 		chMap := make(chan string)
 
@@ -123,21 +115,15 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 		}()
 
 		for i := 0; i < nRoutines; i++ {
-
 			go func() {
-
 				for j := 0; j < nPerRoutines; j++ {
-
 					xid := add(t, p, func(taskID string) error {
 						return nil
 					})
 
 					chMap <- xid
-
 				}
-
 			}()
-
 		}
 
 		ch := p.GetInfoChannel()
@@ -153,37 +139,29 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 				if count >= nMaxIter {
 					break
 				}
-
 			}
 
 			chQuit <- struct{}{}
-
 		}()
 
 		go p.Server()
 
 		for i := 0; i < nRoutines; i++ {
-
 			go func() {
-
 				for j := 0; j < nPerRoutines; j++ {
-
 					xid := add(t, p, func(taskID string) error {
 						return nil
 					})
 
 					chMap <- xid
-
 				}
-
 			}()
-
 		}
 
 		<-chQuit
 
 		if len(checkListGenerated) != len(checkListReceived) {
-			t.Errorf("Generate list and Receive list have differente sizes. Generate: %d, Received: %d", len(checkListGenerated), len(checkListReceived))
+			t.Errorf("Generate list and Receive list have difference sizes. Generate: %d, Received: %d", len(checkListGenerated), len(checkListReceived))
 		}
 
 		sort.Strings(checkListGenerated)
@@ -192,7 +170,5 @@ func TestPool_AddingOnRunningServer(t *testing.T) {
 		if !cmp.Equal(checkListGenerated, checkListReceived) {
 			t.Errorf("something went wrong: %s", cmp.Diff(checkListGenerated, checkListReceived))
 		}
-
 	})
-
 }

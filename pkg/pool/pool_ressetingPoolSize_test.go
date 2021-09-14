@@ -6,9 +6,7 @@ import (
 )
 
 func TestPool_ReSettingPoolSize(t *testing.T) {
-
 	t.Run("Resize to a lesser pool size", func(t *testing.T) {
-
 		ch := make(chan struct{ ID string })
 
 		p := New(10)
@@ -33,11 +31,9 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 		if wf.ID != xidAfterServerStarted {
 			t.Errorf("unexpected ID on wf, got: %s", wf.ID)
 		}
-
 	})
 
 	t.Run("Resize to a bigger pool size", func(t *testing.T) {
-
 		ch := make(chan struct{ ID string })
 
 		p := New(10)
@@ -62,7 +58,6 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 		if wf.ID != xidAfterServerStarted {
 			t.Errorf("unexpected ID on wf, got: %s", wf.ID)
 		}
-
 	})
 
 	t.Run("Resize with Qeued tasks to a bigger pool", func(t *testing.T) {
@@ -83,7 +78,7 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 		nMaxIter := nIter * 2
 
 		go func() {
-			//count start from 1 becase the first one will be waiting
+			// count start from 1 becase the first one will be waiting
 			count := 0
 			for xid := range chMap {
 				count++
@@ -98,11 +93,9 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 					break
 				}
 			}
-
 		}()
 
 		go func() {
-
 			count := 0
 
 			for w := range ch {
@@ -113,11 +106,9 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 				if count > nMaxIter {
 					break
 				}
-
 			}
 
 			chQuit <- struct{}{}
-
 		}()
 
 		time.Sleep(10 * time.Microsecond)
@@ -130,21 +121,15 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 		chMap <- xid
 
 		for i := 0; i < nRoutines; i++ {
-
 			go func() {
-
 				for j := 0; j < nPerRoutines; j++ {
-
 					xid := add(t, p, func(taskID string) error {
 						return nil
 					})
 
 					chMap <- xid
-
 				}
-
 			}()
-
 		}
 
 		go p.Server()
@@ -152,28 +137,22 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 		p.SetMaxPoolSize(10)
 
 		for i := 0; i < nRoutines; i++ {
-
 			go func() {
-
 				for j := 0; j < nPerRoutines; j++ {
-
 					xid := add(t, p, func(taskID string) error {
 						time.Sleep(10 * time.Millisecond)
 						return nil
 					})
 
 					chMap <- xid
-
 				}
-
 			}()
-
 		}
 
 		<-chQuit
 
 		if len(checkListGenerated) != len(checkListReceived) {
-			t.Errorf("Generate list and Receive list have differente sizes. Generate: %d, Received: %d", len(checkListGenerated), len(checkListReceived))
+			t.Errorf("Generate list and Receive list have difference sizes. Generate: %d, Received: %d", len(checkListGenerated), len(checkListReceived))
 		}
 
 		mGenerated := toMap(t, checkListGenerated)
@@ -184,7 +163,5 @@ func TestPool_ReSettingPoolSize(t *testing.T) {
 				t.Errorf("id not found: %s", v)
 			}
 		}
-
 	})
-
 }

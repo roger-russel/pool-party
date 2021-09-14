@@ -6,9 +6,8 @@ import (
 )
 
 func TestPool_AddingAfterShutdown(t *testing.T) {
-
 	t.Run("Adding on Shutdown", func(t *testing.T) {
-		//chWait := make(chan struct{})
+		// chWait := make(chan struct{})
 
 		p := New(1)
 
@@ -26,9 +25,7 @@ func TestPool_AddingAfterShutdown(t *testing.T) {
 		if !errors.Is(err, errAddONShuttingDown) {
 			t.Errorf("Error is different from expected got: %s, expected: %s", err, errAddONShuttingDown)
 		}
-
 	})
-
 }
 
 /*
